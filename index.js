@@ -1,24 +1,3 @@
-// 1. Importaciones necesarias
-const express = require('express');
-const sql = require('mssql'); // Asumiendo que usas mssql
-
-// 2. Inicialización de la aplicación
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// 3. Configuración de tu base de datos (¡Ojo! En producción usa variables de entorno)
-const config = {
-    user: process.env.DB_USER || 'tu_usuario',
-    password: process.env.DB_PASSWORD || 'tu_password',
-    server: process.env.DB_SERVER || 'tu_servidor', 
-    database: process.env.DB_NAME || 'tu_base_de_datos',
-    options: {
-        encrypt: true, 
-        trustServerCertificate: true // Importante dependiendo de tu tipo de servidor SQL
-    }
-};
-
-// 4. TU RUTA (Aquí va el código que me compartiste)
 app.get("/consumo/pal4", async (req, res) => {
   try {
     const pool = await sql.connect(config);
@@ -30,17 +9,27 @@ app.get("/consumo/pal4", async (req, res) => {
           LGORT,
           SUM(
               CASE 
-                  -- REVISIÓN IMPORTANTE EN ESTA PARTE:
-                  WHEN BWART = 201 THEN ABS(MENGE)
-                  WHEN BWART = 202 THEN -ABS(MENGE)
+                  -- Lógica para el almacén P402 (Movimientos 201 y 202)
+                  WHEN LGORT = 'P402' AND BWART = 201 THEN ABS(MENGE)
+                  WHEN LGORT = 'P402' AND BWART = 202 THEN -ABS(MENGE)
+                  
+                  -- Lógica para el almacén MT10 (Movimientos 261 y 262)
+                  WHEN LGORT = 'MT10' AND BWART = 261 THEN ABS(MENGE)
+                  WHEN LGORT = 'MT10' AND BWART = 262 THEN -ABS(MENGE)
+                  
                   ELSE 0
               END
           ) AS ConsumoUltimos3Meses,
           MAX(BUDAT_MKPF) AS UltimaFecha
       FROM MovimientosDeInventario
-      WHERE LGORT IN ('P402', 'MT10')
-        AND BUDAT_MKPF >= DATEADD(MONTH, -3, GETDATE())
-        AND BWART IN (201,202)
+      WHERE 
+        -- Filtro general de fecha
+        BUDAT_MKPF >= DATEADD(MONTH, -3, GETDATE())
+        -- Filtro cruzado: Asegura que solo entren las combinaciones correctas de Almacén + Movimiento
+        AND (
+          (LGORT = 'P402' AND BWART IN (201, 202)) OR 
+          (LGORT = 'MT10' AND BWART IN (261, 262))
+        )
       GROUP BY MATNR, WERKS, LGORT;
     `);
 
@@ -50,9 +39,4 @@ app.get("/consumo/pal4", async (req, res) => {
     console.error("Error en la ruta:", err);
     res.status(500).json({ error: err.toString() });
   }
-});
-
-// 5. Iniciar el servidor
-app.listen(PORT, () => {
-    console.log(`Servidor corriendo en el puerto ${PORT}`);
 });
