@@ -1,3 +1,24 @@
+// 1. Importaciones necesarias
+const express = require('express');
+const sql = require('mssql'); 
+
+// 2. Inicialización de la aplicación
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// 3. Configuración de tu base de datos
+const config = {
+    user: process.env.DB_USER || 'tu_usuario',
+    password: process.env.DB_PASSWORD || 'tu_password',
+    server: process.env.DB_SERVER || 'tu_servidor', 
+    database: process.env.DB_NAME || 'tu_base_de_datos',
+    options: {
+        encrypt: true, 
+        trustServerCertificate: true 
+    }
+};
+
+// 4. TU RUTA (Corregida con los movimientos de MT10 y P402)
 app.get("/consumo/pal4", async (req, res) => {
   try {
     const pool = await sql.connect(config);
@@ -23,9 +44,7 @@ app.get("/consumo/pal4", async (req, res) => {
           MAX(BUDAT_MKPF) AS UltimaFecha
       FROM MovimientosDeInventario
       WHERE 
-        -- Filtro general de fecha
         BUDAT_MKPF >= DATEADD(MONTH, -3, GETDATE())
-        -- Filtro cruzado: Asegura que solo entren las combinaciones correctas de Almacén + Movimiento
         AND (
           (LGORT = 'P402' AND BWART IN (201, 202)) OR 
           (LGORT = 'MT10' AND BWART IN (261, 262))
@@ -39,4 +58,9 @@ app.get("/consumo/pal4", async (req, res) => {
     console.error("Error en la ruta:", err);
     res.status(500).json({ error: err.toString() });
   }
+});
+
+// 5. Iniciar el servidor
+app.listen(PORT, () => {
+    console.log(`Servidor corriendo en el puerto ${PORT}`);
 });
